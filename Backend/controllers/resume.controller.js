@@ -93,16 +93,29 @@ export const updateResume = async(req,res)=>{
         const {resumeId, resumeData, removeBackground} = req.body
         const image = req.file;
 
-        let resumeDataCopy;
-        if(typeof resumeData === 'string'){
-            resumeDataCopy = await JSON.parse(resumeData)
-        }else{
-            resumeDataCopy = structuredClone(resumeData)
+        if(!resumeId || !resumeData){
+            return res.status(400).json({message: 'resumeId and resumeData are required'})
         }
-        if(image){
- 
-        const imageBufferData = fs.createReadStream(image.path)
 
+        const resumeDataCopy = typeof resumeData === 'string'
+            ? JSON.parse(resumeData)
+            : structuredClone(resumeData)
+
+        if(!resumeDataCopy || typeof resumeDataCopy !== 'object' || Array.isArray(resumeDataCopy)){
+            return res.status(400).json({message: 'resumeData must be an object'})
+        }
+
+        delete resumeDataCopy._id
+        delete resumeDataCopy.userId
+        delete resumeDataCopy.createdAt
+        delete resumeDataCopy.updatedAt
+
+        if(image){
+            if(!resumeDataCopy.personal_info || typeof resumeDataCopy.personal_info !== 'object'){
+                return res.status(400).json({message: 'personal_info is required when uploading an image'})
+            }
+
+            const imageBufferData = fs.createReadStream(image.path)
             const response = await imageKit.files.upload({
                 file: imageBufferData,
                 fileName: 'resume.png',
@@ -114,11 +127,23 @@ export const updateResume = async(req,res)=>{
             resumeDataCopy.personal_info.image = response.url
         }
 
-        const resume = await Resume.findOneAndUpdate({userId, _id: resumeId}, resumeDataCopy, {new:true})
+        const resume = await Resume.findOneAndUpdate(
+            {userId, _id: resumeId},
+            {$set: resumeDataCopy},
+            {new: true, runValidators: true}
+        )
+
+        if(!resume){
+            return res.status(404).json({message: 'Resume not found'})
+        }
 
         return res.status(200).json({message: 'Saved successfully', resume})
     } catch (error) {
-        return res.status(400).json({message:error.message})
+        console.error('Error updating resume:', error)
+        const status = error instanceof SyntaxError || error.name === 'CastError' || error.name === 'ValidationError'
+            ? 400
+            : 500
+        return res.status(status).json({message:error.message})
     }
 }
 

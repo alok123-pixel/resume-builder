@@ -1,10 +1,9 @@
 import mongoose from "mongoose";
 
 const connetDB = async()=>{
-    try {
-        mongoose.connection.on('connected', ()=>{
-            console.log('Databse connected')
-        })
+    mongoose.connection.on('connected', ()=>{
+        console.log('Database connected')
+    })
 
     let mongodbURI = process.env.MONGODB_URI;
     const projectName = 'Resume';
@@ -18,9 +17,6 @@ const connetDB = async()=>{
     }
 
     await mongoose.connect(`${mongodbURI}/${projectName}`) 
-    } catch (error) {
-        console.log(error, "Something went wrong"); 
-    }
 }
 
 export default connetDB;
